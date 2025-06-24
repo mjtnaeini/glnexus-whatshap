@@ -1,0 +1,37 @@
+#!/bin/bash
+#PBS -N split_glnexus_samples
+#PBS -P ox63
+#PBS -q normal
+#PBS -l walltime=48:00:00
+#PBS -l mem=64GB
+#PBS -l jobfs=64GB
+#PBS -l ncpus=16
+#PBS -l wd
+#PBS -l storage=gdata/if89+scratch/ox63+gdata/ox63
+
+module load bcftools
+module load htslib
+module load parallel
+
+# Input joint VCF path
+JOINT_VCF="/g/data/ox63/indo_genomes/glnexus_gvcf/joint_output_gvcf.vcf.gz"
+OUT_DIR="$(dirname "$JOINT_VCF")/split_by_sample"
+
+# Create output folder if not exists
+mkdir -p "$OUT_DIR"
+
+# Function to extract per-sample VCF
+extract_sample() {
+    SAMPLE="$1"
+    OUT_VCF="${OUT_DIR}/${SAMPLE}_glnexus.vcf.gz"
+
+    echo "Processing $SAMPLE → $OUT_VCF"
+    bcftools view -s "$SAMPLE" "$JOINT_VCF" -Oz -o "$OUT_VCF"
+    tabix -p vcf "$OUT_VCF"
+}
+
+export -f extract_sample
+export JOINT_VCF OUT_DIR
+
+# Parallel execution using all 16 CPUs
+bcftools query -l "$JOINT_VCF" | parallel -j 16 extract_sample {}
